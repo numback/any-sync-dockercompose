@@ -1,0 +1,11 @@
+.git
+.github
+.env.example
+INSTALL_GUIDE.md
+INSTALL_ZIMAOS.md
+CHECKLIST.md
+README.md
+LICENSE.md
+Makefile
+*.md
+tests/
