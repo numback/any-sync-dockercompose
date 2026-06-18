@@ -6,4 +6,3 @@ log:
     namedLevels: {}
     production: false
 networkStorePath: "/networkStore"
-
