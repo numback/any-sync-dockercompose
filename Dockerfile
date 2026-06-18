@@ -26,22 +26,76 @@ FROM ghcr.io/anyproto/any-sync-consensusnode:v0.7.2 AS consensus-src
 # --- Final stage ---
 FROM base
 
-# Copy tools
+# Copy tools (these are known to exist)
 COPY --from=tools-src /usr/bin/any-sync-netcheck /usr/local/bin/
 COPY --from=tools-src /usr/bin/anyconf /usr/local/bin/
 
-# Copy service binaries (try multiple paths)
-COPY --from=coord-src /any-sync-coordinator /usr/local/bin/any-sync-coordinator 2>/dev/null || true
-COPY --from=coord-src /server /usr/local/bin/any-sync-coordinator 2>/dev/null || true
-COPY --from=node-src /any-sync-node /usr/local/bin/any-sync-node 2>/dev/null || true
-COPY --from=node-src /server /usr/local/bin/any-sync-node 2>/dev/null || true
-COPY --from=filenode-src /any-sync-filenode /usr/local/bin/any-sync-filenode 2>/dev/null || true
-COPY --from=filenode-src /server /usr/local/bin/any-sync-filenode 2>/dev/null || true
-COPY --from=consensus-src /any-sync-consensusnode /usr/local/bin/any-sync-consensusnode 2>/dev/null || true
-COPY --from=consensus-src /server /usr/local/bin/any-sync-consensusnode 2>/dev/null || true
+# Copy ALL files from each image to /tmp/src-*
+# Then use RUN to find and copy the correct binaries
+COPY --from=coord-src / /tmp/src-coord/
+COPY --from=node-src / /tmp/src-node/
+COPY --from=filenode-src / /tmp/src-filenode/
+COPY --from=consensus-src / /tmp/src-consensus/
 
-# Ensure binaries are executable
-RUN chmod +x /usr/local/bin/any-sync-* 2>/dev/null || true
+# Find and install binaries from each source
+RUN set -ex; \
+    # Coordinator: find any-sync-coordinator or server binary
+    if [ -f /tmp/src-coord/usr/local/bin/any-sync-coordinator ]; then \
+        cp /tmp/src-coord/usr/local/bin/any-sync-coordinator /usr/local/bin/any-sync-coordinator; \
+    elif [ -f /tmp/src-coord/any-sync-coordinator ]; then \
+        cp /tmp/src-coord/any-sync-coordinator /usr/local/bin/any-sync-coordinator; \
+    elif [ -f /tmp/src-coord/server ]; then \
+        cp /tmp/src-coord/server /usr/local/bin/any-sync-coordinator; \
+    elif [ -f /tmp/src-coord/usr/bin/any-sync-coordinator ]; then \
+        cp /tmp/src-coord/usr/bin/any-sync-coordinator /usr/local/bin/any-sync-coordinator; \
+    else \
+        echo "WARN: coordinator binary not found, searching..."; \
+        find /tmp/src-coord/ -type f -executable -name "*coordinator*" -o -name "server" | head -1 | xargs -I{} cp {} /usr/local/bin/any-sync-coordinator; \
+    fi; \
+    # Node: find any-sync-node or server binary
+    if [ -f /tmp/src-node/usr/local/bin/any-sync-node ]; then \
+        cp /tmp/src-node/usr/local/bin/any-sync-node /usr/local/bin/any-sync-node; \
+    elif [ -f /tmp/src-node/any-sync-node ]; then \
+        cp /tmp/src-node/any-sync-node /usr/local/bin/any-sync-node; \
+    elif [ -f /tmp/src-node/server ]; then \
+        cp /tmp/src-node/server /usr/local/bin/any-sync-node; \
+    elif [ -f /tmp/src-node/usr/bin/any-sync-node ]; then \
+        cp /tmp/src-node/usr/bin/any-sync-node /usr/local/bin/any-sync-node; \
+    else \
+        echo "WARN: node binary not found, searching..."; \
+        find /tmp/src-node/ -type f -executable -name "*node*" -o -name "server" | head -1 | xargs -I{} cp {} /usr/local/bin/any-sync-node; \
+    fi; \
+    # Filenode: find any-sync-filenode or server binary
+    if [ -f /tmp/src-filenode/usr/local/bin/any-sync-filenode ]; then \
+        cp /tmp/src-filenode/usr/local/bin/any-sync-filenode /usr/local/bin/any-sync-filenode; \
+    elif [ -f /tmp/src-filenode/any-sync-filenode ]; then \
+        cp /tmp/src-filenode/any-sync-filenode /usr/local/bin/any-sync-filenode; \
+    elif [ -f /tmp/src-filenode/server ]; then \
+        cp /tmp/src-filenode/server /usr/local/bin/any-sync-filenode; \
+    elif [ -f /tmp/src-filenode/usr/bin/any-sync-filenode ]; then \
+        cp /tmp/src-filenode/usr/bin/any-sync-filenode /usr/local/bin/any-sync-filenode; \
+    else \
+        echo "WARN: filenode binary not found, searching..."; \
+        find /tmp/src-filenode/ -type f -executable -name "*filenode*" -o -name "server" | head -1 | xargs -I{} cp {} /usr/local/bin/any-sync-filenode; \
+    fi; \
+    # Consensusnode: find any-sync-consensusnode or server binary
+    if [ -f /tmp/src-consensus/usr/local/bin/any-sync-consensusnode ]; then \
+        cp /tmp/src-consensus/usr/local/bin/any-sync-consensusnode /usr/local/bin/any-sync-consensusnode; \
+    elif [ -f /tmp/src-consensus/any-sync-consensusnode ]; then \
+        cp /tmp/src-consensus/any-sync-consensusnode /usr/local/bin/any-sync-consensusnode; \
+    elif [ -f /tmp/src-consensus/server ]; then \
+        cp /tmp/src-consensus/server /usr/local/bin/any-sync-consensusnode; \
+    elif [ -f /tmp/src-consensus/usr/bin/any-sync-consensusnode ]; then \
+        cp /tmp/src-consensus/usr/bin/any-sync-consensusnode /usr/local/bin/any-sync-consensusnode; \
+    else \
+        echo "WARN: consensusnode binary not found, searching..."; \
+        find /tmp/src-consensus/ -type f -executable -name "*consensus*" -o -name "server" | head -1 | xargs -I{} cp {} /usr/local/bin/any-sync-consensusnode; \
+    fi; \
+    # Make all binaries executable
+    chmod +x /usr/local/bin/any-sync-coordinator /usr/local/bin/any-sync-node /usr/local/bin/any-sync-filenode /usr/local/bin/any-sync-consensusnode 2>/dev/null || true; \
+    # Cleanup temp files
+    rm -rf /tmp/src-coord /tmp/src-node /tmp/src-filenode /tmp/src-consensus; \
+    echo "Done installing binaries"
 
 # MongoDB 7.0
 RUN curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc \
